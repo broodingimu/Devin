@@ -2,9 +2,13 @@ import tkinter as tk
 from tkinter import messagebox
 import os
 from datetime import datetime
-import win32gui
-import win32con
-import winsound  # 用于声音报警
+import platform
+import logging
+import sound_utils
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 保存输入内容的文件路径
 SAVE_FILE = "input_log.txt"  # 你可以修改为绝对路径来确保保存到你希望的位置
@@ -135,6 +139,7 @@ class FullScreenApp:
     def start_alert(self):
         """开始报警，弹出警告框并持续播放警报声"""
         if not self.alerting:  # 只在第一次触发时报警
+            logger.info("Starting alert state")
             self.alerting = True
             self.text_area.config(state=tk.DISABLED)  # 禁用文本框输入
             self.play_alert_sound()  # 播放报警声音
@@ -143,15 +148,16 @@ class FullScreenApp:
 
     def stop_alert(self):
         """停止报警，恢复输入框状态"""
+        logger.info("Stopping alert state")
         self.alerting = False
         self.text_area.config(state=tk.NORMAL)  # 重新启用输入框
         self.change_barcode_listbox_color("white")  # 恢复右侧条码框背景色
 
     def play_alert_sound(self):
-        """持续播放报警声音，直到 Shift 被按下"""
+        """Play alert sound and schedule next alert if still in alert state."""
         if self.alerting:
-            winsound.Beep(1000, 500)  # 播放警告声音
-            self.root.after(500, self.play_alert_sound)  # 每隔500ms持续播放
+            sound_utils.play_beep(1000, 500)
+            self.root.after(500, self.play_alert_sound)
 
     def show_alert_message(self):
         """弹出警告框"""
@@ -162,22 +168,27 @@ class FullScreenApp:
         self.barcode_listbox.config(bg=color)
 
     def check_window_foreground(self):
-        """检测窗口是否在最前面，如果不在则将其抢回来"""
-        def bring_to_front():
-            # 获取当前窗口的句柄
-            hwnd = self.root.winfo_id()
-            
-            # 获取窗口的当前 Z 顺序状态
-            foreground_hwnd = win32gui.GetForegroundWindow()
-            if hwnd != foreground_hwnd:
-                # 如果窗口不在最前，将其设置为最前
-                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE | win32con.SWP_NOSIZE)
-                print("Window was not in the foreground. Brought it to front.")
+        """Ensure window stays in foreground."""
+        try:
+            if platform.system() == 'Windows':
+                import win32gui
+                import win32con
+                foreground_hwnd = win32gui.GetForegroundWindow()
+                hwnd = self.root.winfo_id()
+                if foreground_hwnd != hwnd:
+                    self.bring_to_front(hwnd)
+            else:
+                # For non-Windows systems, use Tkinter's built-in focus methods
+                if not self.root.focus_get():
+                    self.root.lift()
+                    self.root.focus_force()
 
-            # 定时检查，确保窗口始终在最前
-            self.root.after(1000, bring_to_front)  # 每秒检查一次
-
-        bring_to_front()
+            # Schedule next check
+            self.root.after(1000, self.check_window_foreground)
+        except Exception as e:
+            logger.error(f"Error checking window focus: {str(e)}")
+            # Continue checking even if there's an error
+            self.root.after(1000, self.check_window_foreground)
 
     def limit_text_area_lines(self):
         """限制文本框中显示的行数，如果超过最大行数则删除最旧的内容"""
