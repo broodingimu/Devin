@@ -12,16 +12,22 @@ MAX_LINES = 100  # 限制最大显示的行数
 MAX_DISPLAYED_BARCODES = 10  # 显示最近的10条条码
 
 class FullScreenApp:
+    """A full-screen application for capturing and validating barcode inputs.
+
+    Provides a persistent full-screen interface that captures barcode inputs,
+    validates them against the first input, and maintains a history of recent scans.
+    Includes alert functionality for mismatched inputs."""
+
     def __init__(self, root):
         self.root = root
         self.root.title("Full Screen Input")
-        
+
         # 设置全屏
         self.root.attributes('-fullscreen', True)
-        
+
         # 设置窗口始终在最前
         self.root.attributes("-topmost", 1)
-        
+
         # 防止窗口被关闭
         self.root.protocol("WM_DELETE_WINDOW", self.disable_event)
 
@@ -36,7 +42,7 @@ class FullScreenApp:
 
         # 绑定滚动条的更新
         self.scrollbar.config(command=self.text_area.yview)
-        
+
         # 创建右侧显示条码的框
         self.barcode_listbox = tk.Listbox(self.root, font=("Arial", 12), width=30, height=10)
         self.barcode_listbox.pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=10)
@@ -49,7 +55,7 @@ class FullScreenApp:
         self.root.bind('<Return>', self.save_input)  # 保存输入
         self.root.bind('<Escape>', self.handle_escape)  # 检测两次 Esc
         self.root.bind('<Shift_L>', self.cancel_alert)  # 检测 Shift 键
-        
+
         # 连续 Esc 检测相关
         self.escape_pressed = False
         self.escape_timer_id = None
