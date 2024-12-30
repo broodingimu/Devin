@@ -4,10 +4,11 @@ Market maker module for coordinating price manipulation through distributed trad
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union
 
 from .wallet_manager import WalletManager
 from .raydium_interface import RaydiumInterface
+from .pump_fun_interface import PumpFunInterface
 from .trade_distributor import TradeDistributor
 from .csv_processor import CSVProcessor
 
@@ -20,8 +21,9 @@ logger = logging.getLogger(__name__)
 class MarketMaker:
     def __init__(
         self,
-        pool_address: str,
+        address: str,
         csv_path: str,
+        dex_name: str = "raydium",
         interval_minutes: int = 5,
         max_slippage: float = 0.01,
         min_trade_size: float = 0.1,
@@ -33,7 +35,8 @@ class MarketMaker:
         Initialize market maker.
         
         Args: 
-            pool_address: Raydium pool address
+            address: DEX-specific address (pool address for Raydium, mint address for pump.fun)
+            dex_name: Name of DEX to use ("raydium" or "pump_fun")
             csv_path: Path to CSV file with target prices
             interval_minutes: Time interval between price targets
             max_slippage: Maximum acceptable slippage per trade
@@ -43,10 +46,18 @@ class MarketMaker:
             price_check_interval: Seconds between price checks
         """
         self.wallet_manager = WalletManager()
-        self.raydium = RaydiumInterface(pool_address)
+        
+        # Initialize DEX interface based on dex_name
+        if dex_name == "raydium":
+            self.dex_interface = RaydiumInterface(address)
+        elif dex_name == "pump_fun":
+            self.dex_interface = PumpFunInterface(address)
+        else:
+            raise ValueError(f"Unsupported DEX: {dex_name}")
+            
         self.trade_distributor = TradeDistributor(
             wallet_manager=self.wallet_manager,
-            raydium=self.raydium,
+            dex_interface=self.dex_interface,
             min_trade_size=min_trade_size,
             max_trade_size=max_trade_size,
             max_trades_per_interval=max_trades_per_interval
@@ -97,7 +108,7 @@ class MarketMaker:
                     continue
 
                 # Get current price
-                current_price = await self.raydium.get_pool_price()
+                current_price = await self.dex_interface.get_pool_price()
                 logger.info(
                     f"Current price: {current_price:.4f}, "
                     f"Target price: {target_price:.4f}"
@@ -132,7 +143,7 @@ class MarketMaker:
                         logger.info(f"Successfully executed {successful_trades} trades")
                         
                     # Verify price movement
-                    new_price = await self.raydium.get_pool_price()
+                    new_price = await self.dex_interface.get_pool_price()
                     price_change = (new_price - current_price) / current_price
                     logger.info(
                         f"Price moved from {current_price:.4f} to {new_price:.4f} "
@@ -153,7 +164,7 @@ class MarketMaker:
             return
         try:
             await self.wallet_manager.close()
-            await self.raydium.close()
+            await self.dex_interface.close()
             logger.info("Cleaned up resources")
             self._cleaned_up = True
         except Exception as e:
@@ -165,13 +176,14 @@ if __name__ == "__main__":
     
     load_dotenv()
     
-    required_env = ["POOL_ADDRESS", "PRICE_CSV_PATH"]
+    required_env = ["DEX_ADDRESS", "DEX_NAME", "PRICE_CSV_PATH"]
     missing_env = [var for var in required_env if not os.getenv(var)]
     if missing_env:
         raise ValueError(f"Missing required environment variables: {missing_env}")
     
     bot = MarketMaker(
-        pool_address=os.getenv("POOL_ADDRESS"),
+        address=os.getenv("DEX_ADDRESS"),
+        dex_name=os.getenv("DEX_NAME", "raydium").lower(),
         csv_path=os.getenv("PRICE_CSV_PATH"),
         max_slippage=float(os.getenv("MAX_SLIPPAGE", "0.01")),
         min_trade_size=float(os.getenv("MIN_TRADE_SIZE", "0.1")),

@@ -2,6 +2,11 @@
 import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock
+from _pytest.config import Config
+
+def pytest_configure(config: Config):
+    """Disable anchorpy pytest plugin."""
+    config.pluginmanager.set_blocked("anchorpy.pytest_plugin")
 
 @pytest.fixture(autouse=True)
 def mock_env_vars():

@@ -2,7 +2,7 @@
 Trade distribution module for market making bot.
 Handles distributing trades across multiple wallets.
 """
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Union
 import logging
 import random
 from datetime import datetime, timedelta
@@ -10,6 +10,9 @@ from solders.keypair import Keypair
 
 from .wallet_manager import WalletManager
 from .raydium_interface import RaydiumInterface
+from .pump_fun_interface import PumpFunInterface
+
+DEXInterface = Union[RaydiumInterface, PumpFunInterface]
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +20,7 @@ class TradeDistributor:
     def __init__(
         self,
         wallet_manager: WalletManager,
-        raydium: RaydiumInterface,
+        dex_interface: DEXInterface,
         min_trade_size: float = 0.1,  # Minimum trade size in SOL
         max_trade_size: float = 1.0,  # Maximum trade size in SOL
         max_trades_per_interval: int = 5  # Maximum trades per 5-min interval
@@ -27,13 +30,13 @@ class TradeDistributor:
         
         Args:
             wallet_manager: Wallet manager instance
-            raydium: Raydium interface instance
+            dex_interface: DEX interface instance (Raydium or Pump.fun)
             min_trade_size: Minimum trade size in SOL
             max_trade_size: Maximum trade size in SOL
             max_trades_per_interval: Maximum trades per interval
         """
         self.wallet_manager = wallet_manager
-        self.raydium = raydium
+        self.dex_interface = dex_interface
         self.min_trade_size = min_trade_size
         self.max_trade_size = max_trade_size
         self.max_trades_per_interval = max_trades_per_interval
@@ -57,7 +60,7 @@ class TradeDistributor:
         """
         try:
             # Get required total amount
-            total_amount = await self.raydium.calculate_required_amount(
+            total_amount = await self.dex_interface.calculate_required_amount(
                 target_price, current_price
             )
             
@@ -142,11 +145,11 @@ class TradeDistributor:
         
         for wallet, amount, is_buy in trades:
             try:
-                # Use wallet's execute_trade if available (for testing), otherwise use Raydium
+                # Use wallet's execute_trade if available (for testing), otherwise use DEX interface
                 if hasattr(wallet, 'execute_trade'):
                     signature = await wallet.execute_trade(amount, is_buy)
                 else:
-                    signature = await self.raydium.execute_market_order(
+                    signature = await self.dex_interface.execute_market_order(
                         wallet=wallet,
                         amount=amount,
                         is_buy=is_buy,

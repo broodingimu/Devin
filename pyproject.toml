@@ -8,14 +8,19 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.12"
-solana = "^0.30.2"
-solders = ">=0.18.0,<0.19.0"
+python = "^3.10"
+solana = "^0.34.0"
+solders = ">=0.21.0,<0.22.0"
+anchorpy = "^0.20.1"
 pandas = "^2.2.0"
 python-dotenv = "^1.0.0"
 web3 = "^6.15.1"
 asyncio = "^3.4.3"
 aiohttp = "^3.9.1"
+jito-searcher-client = "^0.1.5"
+base58 = "^2.1.1"
+construct = "2.10.68"
+pytest-xprocess = "^0.23.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^8.0.0"
